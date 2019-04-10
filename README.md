@@ -1,2 +1,2 @@
 # VSB-Power-Line-Fault-Detection
-My work on the [VSB Power Line Fault Detection Competition](https://www.kaggle.com/c/vsb-power-line-fault-detection) on Kaggle.
+My work on the [VSB Power Line Fault Detection Competition](https://www.kaggle.com/c/vsb-power-line-fault-detection) on Kaggle. The aim of this challenge is to create a machine learning model that can predict whether or not there is a fault in an overhead current-carrying power line based on the voltage signals from the wires. I present some notebooks which visualize the data and create ML pipelines to solve this problem.
