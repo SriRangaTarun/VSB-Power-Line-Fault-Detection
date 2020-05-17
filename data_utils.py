@@ -55,10 +55,11 @@ def transform_ts(ts, n_dim=160, min_max=(-1,1)):
 
 def prep_data(start, end):
     X, y = [], []
+    praq_train = pq.read_pandas(path, columns=[str(i) for i in range(start, end)]).to_pandas()
     for id_measurement in tqdm(df_train.index.levels[0].unique()[int(start/3):int(end/3)]):
 
         X_signal = []
-        for phase in [0,1,2]:
+        for phase in [0, 1, 2]:
             signal_id, target = df_train.loc[id_measurement].loc[phase]
  
             if phase == 0:
@@ -68,6 +69,4 @@ def prep_data(start, end):
         X_signal = np.concatenate(X_signal, axis=1)
         X.append(X_signal)
 
-    X = np.asarray(X)
-    y = np.asarray(y)
-    return X, y
+    return np.asarray(X), np.asarray(y)
