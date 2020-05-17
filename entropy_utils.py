@@ -1,10 +1,14 @@
 # All functions takes from https://github.com/raphaelvallat/entropy
 
+# Import necessary libraries
+
 import numpy as np
 from numba import jit
 from math import log, floor
 from sklearn.neighbors import KDTree
 from scipy.signal import periodogram, welch
+
+# Define fractal dimension and entropy functions
 
 def petrosian_fd(x):
     n = len(x)
