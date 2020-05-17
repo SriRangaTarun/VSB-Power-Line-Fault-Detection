@@ -1,12 +1,19 @@
+# Import necessary libraries
+
 import os
+import argparse
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+from data_utils import *
+from entropy_utils import *
 from keras.layers import *
 from keras.models import *
 import pyarrow.parquet as pq
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.model_selection import train_test_split 
+from sklearn.model_selection import train_test_split
+
+# Define hyperparameters and paths
 
 N_SPLITS = 5
 max_num = 127
@@ -14,19 +21,27 @@ min_num = -128
 sample_size = 800000
 
 parser = argparse.ArgumentParser()
+parser.add_argument('output_path')
 parser.add_argument('test_data_path')
 parser.add_argument('train_data_path')
 parser.add_argument('test_parquet_path')
 parser.add_argument('train_parquet_path')
+parser.add_argument('sample_submission_path')
 
 args = parser.parse_args()
+output_path = args.output_path
 test_data_path = args.test_data_path
 train_data_path = args.train_data_path
 test_parquet_path = args.test_parquet_path
 train_parquet_path = args.train_parquet_path
+sample_submission_path = args.sample_submission_path
+
+# Load train data
 
 df_train = pd.read_csv(train_data_path)
 df_train = df_train.set_index(['id_measurement', 'phase'])
+
+# Use utility functions to load training features (rolling perc, mean, std, etc)
 
 X, y = [], []
 def load_all():
@@ -39,6 +54,8 @@ load_all()
 X = np.concatenate(X)
 y = np.concatenate(y)
 
+# Add hand-engineered entropy and fractal dimension features
+
 def entropy_and_fractal_dim(x):
     return [perm_entropy(x), svd_entropy(x), app_entropy(x),\
             sample_entropy(x), petrosian_fd(x), katz_fd(x), higuchi_fd(x)]
@@ -47,9 +64,13 @@ features = []
 signals = X.reshape((len(X), X.shape[1]*X.shape[2]))
 for signal in signals: features.append(entropy_and_fractal_dim(signal))
 
+# Scale training features
+
 scaler = MinMaxScaler(feature_range=(0, 1))
 features = np.array(features).reshape((len(features), 7))
 scaler.fit(features); features = scaler.transform(features)
+
+# Build LSTM model with attention
 
 def model_lstm(input_shape, feat_shape):
     inp = Input(shape=(input_shape[1], input_shape[2],))
@@ -68,6 +89,8 @@ def model_lstm(input_shape, feat_shape):
     model.compile(loss='binary_crossentropy', optimizer='adam', metrics=[matthews_correlation])
     
     return model
+
+# Train LSTM model on 5 folds
 
 y_val = []
 preds_val = []
@@ -92,6 +115,8 @@ for idx, (train_idx, val_idx) in enumerate(splits):
 
 preds_val = np.concatenate(preds_val)[...,0]; y_val = np.concatenate(y_val)
 
+# Search for ideal classification probability threshold to maximize validation MCC
+
 def threshold_search(y_true, y_proba):
     best_threshold = 0
     best_score = 0
@@ -103,11 +128,15 @@ def threshold_search(y_true, y_proba):
 
     return {'threshold': best_threshold, 'matthews_correlation': best_score}
 
+# Print optimal threshold and MCC
+
 optimal_values = threshold_search(y_val, preds_val)
 best_threshold, best_score = optimal_values['threshold'], optimal_values['matthews_correlation']
 
 print("Optimal Threshold : " + str(best_threshold))
 print("Best Matthews Correlation : " + str(best_score))
+
+# Get test features (rolling perc, mean, std, etc)
 
 meta_test = pd.read_csv(test_data_path)
 
@@ -136,16 +165,22 @@ X_test_input = np.asarray([np.concatenate([X_test[i][3],
                                            X_test[i+1][3],
                                            X_test[i+2][3]], axis=1) for i in range(0,len(X_test), 3)])
 
+# Calculate the entropy and fractal dimension features for the test data
+
 signals = X_test_input.reshape((len(X_test_input), X_test_input.shape[1]*X_test_input.shape[2]))
 
 features_test = []
 for signal in signals:
     features_test.append(entropy_and_fractal_dim(signal))
     
+# Scale the test features
+    
 features_test = scaler.transform(np.array(features_test).reshape((len(features_test), 7)))
 
+# Infer the model on the testing data and make a submission
+
 preds_test = []
-submission = pd.read_csv('../input/sample_submission.csv')
+submission = pd.read_csv(sample_submission_path)
 
 for i in range(N_SPLITS):
     model.load_weights('weights_{}.h5'.format(i))
@@ -160,4 +195,4 @@ for i in range(N_SPLITS):
 preds = (np.squeeze(np.mean(preds_test, axis=0)) > best_threshold).astype(np.int)
 
 submission['target'] = preds
-submission.to_csv('submission.csv', index=False)
+submission.to_csv(output_path, index=False)
