@@ -1,5 +1,11 @@
 # All functions takes from https://github.com/raphaelvallat/entropy
 
+import numpy as np
+from numba import jit
+from math import log, floor
+from sklearn.neighbors import KDTree
+from scipy.signal import periodogram, welch
+
 def petrosian_fd(x):
     n = len(x)
     diff = np.ediff1d(x)
@@ -62,7 +68,6 @@ def _higuchi_fd(x, kmax):
             ll /= k
             ll *= (n_times - 1) / (k * n_max)
             lm[m] = ll
-        # Mean of lm
         m_lm = 0
         for m in range(k):
             m_lm += lm[m]
